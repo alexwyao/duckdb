@@ -1,0 +1,51 @@
+{
+   "result": 0.004119,
+   "timings": {
+
+   },
+   "tree": {
+   "name": "PROJECTION",
+   "timing":0.00,
+   "cardinality":33862,
+   "extra_info": "FIRE_YEAR\n",
+   "children": [
+   {
+      "name": "HASH_JOIN",
+      "timing":0.00,
+      "cardinality":33862,
+      "extra_info": "INNER\nSTATE=STATE\n",
+      "children": [
+      {
+         "name": "HASH_JOIN",
+         "timing":0.00,
+         "cardinality":1700,
+         "extra_info": "INNER\nSTATE=STATE\n",
+         "children": [
+         {
+            "name": "SEQ_SCAN",
+            "timing":0.00,
+            "cardinality":100,
+            "extra_info": "fires\n[INFOSEPARATOR]\nSTATE\nFIRE_YEAR",
+            "children": []
+            },
+         {
+            "name": "SEQ_SCAN",
+            "timing":0.00,
+            "cardinality":100,
+            "extra_info": "fires\n[INFOSEPARATOR]\nSTATE",
+            "children": []
+            }
+         ]
+         },
+      {
+         "name": "SEQ_SCAN",
+         "timing":0.00,
+         "cardinality":100,
+         "extra_info": "fires\n[INFOSEPARATOR]\nSTATE",
+         "children": []
+         }
+      ]
+      }
+   ]
+   }
+}

@@ -8,7 +8,8 @@ class ProvEvaluator(object):
 
     def __init__(self, table=None):
         print("Initializing evaluator")
-        self.con = duckdb.connect(database=':memory:', read_only=False)
+        #self.con = duckdb.connect(database=':memory:', read_only=False)
+        self.con = duckdb.connect()
         self.compiler = ProvCompiler(self.con, '/tmp/prov_eval.cpp')
 
     def run_query(self, q: "string"):
@@ -38,7 +39,8 @@ class ProvEvaluator(object):
         print("Compiling query {} ...".format(q_id))
 
         # TODO: change fname to include q_id
-        self.compiler.process_qp(q_id, '/tmp/profiled.json')
+        self.compiler.process_qp(q_id, '/tmp/profiled.json', timing=True, debug=False)
+        # self.compiler.process_qp(q_id, '/tmp/profiled.json', timing=False, debug=True)
         
         
         """
