@@ -1,8 +1,5 @@
 import duckdb
 from provcompiler import *
-#from context import *
-#from pipeline import *
-#import json
 
 class ProvEvaluator(object):
 
@@ -13,7 +10,7 @@ class ProvEvaluator(object):
         self.compiler = ProvCompiler(self.con, '/tmp/prov_eval.cpp')
 
     def run_query(self, q: "string"):
-        self.con.execute(q)
+        return self.con.execute(q).fetchdf()
 
     def run_lineage_query(self, q):
         # enable lineage
@@ -33,14 +30,17 @@ class ProvEvaluator(object):
         self.con.execute("PRAGMA trace_lineage='OFF';")
 
     def compile_evaluator(self, q):
-        q_id = self.con.execute("SELECT query_id FROM queries_list WHERE query='{}'".format(q)).fetchdf().iloc[0,0]
+        # TODO: retrieve correct query
+        #q_id = self.con.execute("SELECT query_id FROM queries_list WHERE query=\"{}\"".format(q)).fetchdf().iloc[0,0]
+        q_id = self.con.execute("SELECT query_id FROM queries_list LIMIT 1 OFFSET 2").fetchdf().iloc[0,0]
+        print(q_id)
         if not q_id:
             return
         print("Compiling query {} ...".format(q_id))
 
         # TODO: change fname to include q_id
-        self.compiler.process_qp(q_id, '/tmp/profiled.json', timing=True, debug=False)
-        # self.compiler.process_qp(q_id, '/tmp/profiled.json', timing=False, debug=True)
+        #self.compiler.process_qp(q_id, '/tmp/profiled.json', timing=True, debug=False, multi_t=False)
+        self.compiler.process_qp(q_id, '/tmp/profiled.json', timing=True, debug=False, multi_t=True)
         
         
         """
