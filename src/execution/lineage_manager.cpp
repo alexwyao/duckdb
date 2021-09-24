@@ -96,90 +96,92 @@ void ManageLineage::CreateQueryTable(ClientContext &context) {
 void ManageLineage::CreateLineageTables(PhysicalOperator *op, ClientContext &context) {
 	string base = op->GetName() + "_" + to_string(query_id) + "_" + to_string( op->id );
     switch (op->type) {
-    case PhysicalOperatorType::FILTER: {
-        // CREATE TABLE base (value INTEGER, index INTEGER, chunk_id INTEGER)
-        auto info = make_unique<CreateTableInfo>();
-        info->schema = DEFAULT_SCHEMA;
-        info->table = base;
-        info->on_conflict = OnCreateConflict::ERROR_ON_CONFLICT;
-        info->temporary = false;
-        info->columns.push_back(move(ColumnDefinition("value", LogicalType::INTEGER)));
-        info->columns.push_back(move(ColumnDefinition("index", LogicalType::INTEGER)));
-        info->columns.push_back(move(ColumnDefinition("chunk_id", LogicalType::INTEGER)));
-        auto binder = Binder::CreateBinder(context);
-        auto bound_create_info = binder->BindCreateTableInfo(move(info));
-        auto &catalog = Catalog::GetCatalog(context);
-        catalog.CreateTable(context, bound_create_info.get());
+	case PhysicalOperatorType::FILTER: {
+		// CREATE TABLE base (value INTEGER, index INTEGER, chunk_id INTEGER)
+		auto info = make_unique<CreateTableInfo>();
+		info->schema = DEFAULT_SCHEMA;
+		info->table = base;
+		info->on_conflict = OnCreateConflict::ERROR_ON_CONFLICT;
+		info->temporary = false;
+		info->columns.push_back(move(ColumnDefinition("value", LogicalType::INTEGER)));
+		info->columns.push_back(move(ColumnDefinition("index", LogicalType::INTEGER)));
+		info->columns.push_back(move(ColumnDefinition("chunk_id", LogicalType::INTEGER)));
+		auto binder = Binder::CreateBinder(context);
+		auto bound_create_info = binder->BindCreateTableInfo(move(info));
+		auto &catalog = Catalog::GetCatalog(context);
+		catalog.CreateTable(context, bound_create_info.get());
+		CreateLineageTables(op->children[0].get(), context);
+
+		break;
+	}
+	case PhysicalOperatorType::TABLE_SCAN: {
+		// CREATE TABLE base_range (range_start INTEGER, range_end INTEGER, chunk_id INTEGER)
+		auto info = make_unique<CreateTableInfo>();
+		info->schema = DEFAULT_SCHEMA;
+		info->table = base + "_range";
+		info->on_conflict = OnCreateConflict::ERROR_ON_CONFLICT;
+		info->temporary = false;
+		info->columns.push_back(move(ColumnDefinition("range_start", LogicalType::INTEGER)));
+		info->columns.push_back(move(ColumnDefinition("range_end", LogicalType::INTEGER)));
+		info->columns.push_back(move(ColumnDefinition("chunk_id", LogicalType::INTEGER)));
+		auto binder = Binder::CreateBinder(context);
+		auto bound_create_info = binder->BindCreateTableInfo(move(info));
+		auto &catalog = Catalog::GetCatalog(context);
+		catalog.CreateTable(context, bound_create_info.get());
+
+		// CREATE TABLE base_filter (value INTEGER, index INTEGER, chunk_id INTEGER)
+		info = make_unique<CreateTableInfo>();
+		info->schema = DEFAULT_SCHEMA;
+		info->table = base + "_filter";
+		info->on_conflict = OnCreateConflict::ERROR_ON_CONFLICT;
+		info->temporary = false;
+		info->columns.push_back(move(ColumnDefinition("value", LogicalType::INTEGER)));
+		info->columns.push_back(move(ColumnDefinition("index", LogicalType::INTEGER)));
+		info->columns.push_back(move(ColumnDefinition("chunk_id", LogicalType::INTEGER)));
+		bound_create_info = binder->BindCreateTableInfo(move(info));
+		catalog.CreateTable(context, bound_create_info.get());
+
+		break;
+	}
+	case PhysicalOperatorType::PROJECTION: {
+		CreateLineageTables(op->children[0].get(), context);
+		break;
+	}
+	case PhysicalOperatorType::PERFECT_HASH_GROUP_BY:
+	case PhysicalOperatorType::HASH_GROUP_BY: {
+		// CREATE TABLE base_out (value INTEGER, index INTEGER, chunk_id INTEGER)
+		auto info = make_unique<CreateTableInfo>();
+		info->schema = DEFAULT_SCHEMA;
+		info->table = base + "_OUT";
+		info->on_conflict = OnCreateConflict::ERROR_ON_CONFLICT;
+		info->temporary = false;
+		info->columns.push_back(move(ColumnDefinition("value", LogicalType::INTEGER)));
+		info->columns.push_back(move(ColumnDefinition("index", LogicalType::INTEGER)));
+		info->columns.push_back(move(ColumnDefinition("chunk_id", LogicalType::INTEGER)));
+		auto binder = Binder::CreateBinder(context);
+		auto bound_create_info = binder->BindCreateTableInfo(move(info));
+		auto &catalog = Catalog::GetCatalog(context);
+		catalog.CreateTable(context, bound_create_info.get());
+
+		// CREATE TABLE base_sink (value INTEGER, index INTEGER, chunk_id INTEGER)
+		info = make_unique<CreateTableInfo>();
+		info->schema = DEFAULT_SCHEMA;
+		info->table = base + "_SINK";
+		info->on_conflict = OnCreateConflict::ERROR_ON_CONFLICT;
+		info->temporary = false;
+		info->columns.push_back(move(ColumnDefinition("value", LogicalType::INTEGER)));
+		info->columns.push_back(move(ColumnDefinition("index", LogicalType::INTEGER)));
+		info->columns.push_back(move(ColumnDefinition("chunk_id", LogicalType::INTEGER)));
+		bound_create_info = binder->BindCreateTableInfo(move(info));
+		catalog.CreateTable(context, bound_create_info.get());
+
+		CreateLineageTables(op->children[0].get(), context);
+		break;
+	}
+	case PhysicalOperatorType::SIMPLE_AGGREGATE: {
         CreateLineageTables(op->children[0].get(), context);
-
         break;
-    }
-    case PhysicalOperatorType::TABLE_SCAN: {
-        // CREATE TABLE base_range (range_start INTEGER, range_end INTEGER, chunk_id INTEGER)
-        auto info = make_unique<CreateTableInfo>();
-        info->schema = DEFAULT_SCHEMA;
-        info->table = base + "_range";
-        info->on_conflict = OnCreateConflict::ERROR_ON_CONFLICT;
-        info->temporary = false;
-        info->columns.push_back(move(ColumnDefinition("range_start", LogicalType::INTEGER)));
-        info->columns.push_back(move(ColumnDefinition("range_end", LogicalType::INTEGER)));
-        info->columns.push_back(move(ColumnDefinition("chunk_id", LogicalType::INTEGER)));
-        auto binder = Binder::CreateBinder(context);
-        auto bound_create_info = binder->BindCreateTableInfo(move(info));
-        auto &catalog = Catalog::GetCatalog(context);
-        catalog.CreateTable(context, bound_create_info.get());
-
-        // CREATE TABLE base_filter (value INTEGER, index INTEGER, chunk_id INTEGER)
-        info = make_unique<CreateTableInfo>();
-        info->schema = DEFAULT_SCHEMA;
-        info->table = base + "_filter";
-        info->on_conflict = OnCreateConflict::ERROR_ON_CONFLICT;
-        info->temporary = false;
-        info->columns.push_back(move(ColumnDefinition("value", LogicalType::INTEGER)));
-        info->columns.push_back(move(ColumnDefinition("index", LogicalType::INTEGER)));
-        info->columns.push_back(move(ColumnDefinition("chunk_id", LogicalType::INTEGER)));
-        bound_create_info = binder->BindCreateTableInfo(move(info));
-        catalog.CreateTable(context, bound_create_info.get());
-
-        break;
-    }
-    case PhysicalOperatorType::PROJECTION: {
-        CreateLineageTables(op->children[0].get(), context);
-        break;
-    }
-    case PhysicalOperatorType::PERFECT_HASH_GROUP_BY:
-    case PhysicalOperatorType::HASH_GROUP_BY: {
-        // CREATE TABLE base_out (value INTEGER, index INTEGER, chunk_id INTEGER)
-        auto info = make_unique<CreateTableInfo>();
-        info->schema = DEFAULT_SCHEMA;
-        info->table = base + "_OUT";
-        info->on_conflict = OnCreateConflict::ERROR_ON_CONFLICT;
-        info->temporary = false;
-        info->columns.push_back(move(ColumnDefinition("value", LogicalType::INTEGER)));
-        info->columns.push_back(move(ColumnDefinition("index", LogicalType::INTEGER)));
-        info->columns.push_back(move(ColumnDefinition("chunk_id", LogicalType::INTEGER)));
-        auto binder = Binder::CreateBinder(context);
-        auto bound_create_info = binder->BindCreateTableInfo(move(info));
-        auto &catalog = Catalog::GetCatalog(context);
-        catalog.CreateTable(context, bound_create_info.get());
-
-        // CREATE TABLE base_sink (value INTEGER, index INTEGER, chunk_id INTEGER)
-        info = make_unique<CreateTableInfo>();
-        info->schema = DEFAULT_SCHEMA;
-        info->table = base +  "_SINK";
-        info->on_conflict = OnCreateConflict::ERROR_ON_CONFLICT;
-        info->temporary = false;
-        info->columns.push_back(move(ColumnDefinition("value", LogicalType::INTEGER)));
-        info->columns.push_back(move(ColumnDefinition("index", LogicalType::INTEGER)));
-        info->columns.push_back(move(ColumnDefinition("chunk_id", LogicalType::INTEGER)));
-        bound_create_info = binder->BindCreateTableInfo(move(info));
-        catalog.CreateTable(context, bound_create_info.get());
-
-        CreateLineageTables(op->children[0].get(), context);
-        break;
-    }
-    case PhysicalOperatorType::SIMPLE_AGGREGATE:
-        break;
+	}
     case PhysicalOperatorType::INDEX_JOIN: {
         // CREATE TABLE base_LHS (value INTEGER, index INTEGER, chunk_id INTEGER)
         auto info = make_unique<CreateTableInfo>();
@@ -252,6 +254,62 @@ void ManageLineage::CreateLineageTables(PhysicalOperator *op, ClientContext &con
 
         CreateLineageTables(op->children[0].get(), context);
         CreateLineageTables(op->children[1].get(), context);
+        break;
+    }
+    case PhysicalOperatorType::CROSS_PRODUCT: {
+        auto info = make_unique<CreateTableInfo>();
+        info->schema = DEFAULT_SCHEMA;
+        info->table = base;
+        info->on_conflict = OnCreateConflict::ERROR_ON_CONFLICT;
+        info->temporary = false;
+        info->columns.push_back(move(ColumnDefinition("LHS_offset", LogicalType::INTEGER)));
+        info->columns.push_back(move(ColumnDefinition("RHS_offset", LogicalType::INTEGER)));
+        info->columns.push_back(move(ColumnDefinition("chunk_id", LogicalType::INTEGER)));
+        auto binder = Binder::CreateBinder(context);
+        auto bound_create_info = binder->BindCreateTableInfo(move(info));
+        auto &catalog = Catalog::GetCatalog(context);
+        catalog.CreateTable(context, bound_create_info.get());
+
+        CreateLineageTables(op->children[0].get(), context);
+        CreateLineageTables(op->children[1].get(), context);
+        break;
+    }
+    case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
+    case PhysicalOperatorType::NESTED_LOOP_JOIN: {
+        // CREATE TABLE base_LHS (value INTEGER, index INTEGER, chunk_id INTEGER)
+        auto info = make_unique<CreateTableInfo>();
+        info->schema = DEFAULT_SCHEMA;
+        info->table = base +  "_LHS";
+        info->on_conflict = OnCreateConflict::ERROR_ON_CONFLICT;
+        info->temporary = false;
+        info->columns.push_back(move(ColumnDefinition("value", LogicalType::INTEGER)));
+        info->columns.push_back(move(ColumnDefinition("index", LogicalType::INTEGER)));
+        info->columns.push_back(move(ColumnDefinition("chunk_id", LogicalType::INTEGER)));
+        auto binder = Binder::CreateBinder(context);
+        auto bound_create_info = binder->BindCreateTableInfo(move(info));
+        auto &catalog = Catalog::GetCatalog(context);
+        catalog.CreateTable(context, bound_create_info.get());
+
+        // CREATE TABLE base_RHS (value INTEGER, index INTEGER, chunk_id INTEGER)
+        info = make_unique<CreateTableInfo>();
+        info->schema = DEFAULT_SCHEMA;
+        info->table = base +  "_RHS";
+        info->on_conflict = OnCreateConflict::ERROR_ON_CONFLICT;
+        info->temporary = false;
+        info->columns.push_back(move(ColumnDefinition("value", LogicalType::INTEGER)));
+        info->columns.push_back(move(ColumnDefinition("index", LogicalType::INTEGER)));
+        info->columns.push_back(move(ColumnDefinition("chunk_id", LogicalType::INTEGER)));
+        bound_create_info = binder->BindCreateTableInfo(move(info));
+        catalog.CreateTable(context, bound_create_info.get());
+
+
+        CreateLineageTables(op->children[0].get(), context);
+        CreateLineageTables(op->children[1].get(), context);
+        break;
+    }
+    case PhysicalOperatorType::LIMIT: {
+        // when persisting with limit, we can optimize our code by pushing the limit to childrens
+        CreateLineageTables(op->children[0].get(), context);
         break;
     }
     default:
@@ -294,7 +352,7 @@ void ManageLineage::ForwardLineage(PhysicalOperator *op, shared_ptr<LineageConte
         std::cout << "Table scan chunk range " << start << " " << end << std::endl;
         if (collection->collection.find("filter") != collection->collection.end()) {
             std::cout << "filter on scan" << std::endl;
-            auto fidx = dynamic_cast<LineageDataArray<sel_t>&>(*collection->collection["filter"]).getAtIndex(idx);
+            auto fidx = dynamic_cast<LineageSelVec&>(*collection->collection["filter"]).getAtIndex(idx);
             std::cout << idx << " maps to " << fidx << std::endl;
         } else {
             std::cout << idx << " maps to itself." << std::endl;
@@ -320,7 +378,7 @@ void ManageLineage::ForwardLineage(PhysicalOperator *op, shared_ptr<LineageConte
                     std::cout << "something is wrong, aggregate sink lop not found" << std::endl;
                     return;
                 }
-                group =  dynamic_cast<LineageDataArray<sel_t>&>(*sink_lop->data).getAtIndex(idx);
+                group =  dynamic_cast<LineageSelVec&>(*sink_lop->data).getAtIndex(idx);
                 break;
 
             }
@@ -352,7 +410,6 @@ void ManageLineage::BackwardLineage(PhysicalOperator *op, shared_ptr<LineageCont
         //         maps a row in the output to input index
         string tablename = op->GetName() + "_" + to_string( op->id ) ; // + node ID
         idx_t idx = dynamic_cast<LineageDataArray<sel_t>&>(*lop->data).getAtIndex(oidx);
-        lop->data->persist(context, tablename, lineage->chunk_id);
         std::cout << oidx << " maps to " << idx << std::endl;
         BackwardLineage(op->children[0].get(), move(lineage), idx, context);
         break;
@@ -368,17 +425,12 @@ void ManageLineage::BackwardLineage(PhysicalOperator *op, shared_ptr<LineageCont
         auto start = dynamic_cast<LineageRange&>(*collection->collection["rowid_range"]).start;
         auto end = dynamic_cast<LineageRange&>(*collection->collection["rowid_range"]).end;
         std::cout << "Table scan chunk range " << start << " " << end << std::endl;
-        string tablename = op->GetName() + "_" + to_string( op->id ) + "_range" ; // + node ID
-        dynamic_cast<LineageRange&>(*collection->collection["rowid_range"]).persist(context, tablename, lineage->chunk_id);
 
         if (collection->collection.find("filter") != collection->collection.end()) {
             // get selection vector
             std::cout << "filter on scan" <<  std::endl;
-            auto fidx = dynamic_cast<LineageDataArray<sel_t>&>(*collection->collection["filter"]).getAtIndex(oidx);
+            auto fidx = dynamic_cast<LineageSelVec&>(*collection->collection["filter"]).getAtIndex(oidx);
             std::cout << oidx << " maps to " << fidx << " + offset " << fidx + start << std::endl;
-            string tablename = op->GetName() + "_" + to_string( op->id ) + "_filter" ; // + node ID
-            dynamic_cast<LineageDataArray<sel_t>&>(*collection->collection["filter"]).persist(context, tablename, lineage->chunk_id);
-
         } else {
             std::cout << oidx << " maps to itself + offset = " << oidx + start << std::endl;
         }
@@ -402,8 +454,6 @@ void ManageLineage::BackwardLineage(PhysicalOperator *op, shared_ptr<LineageCont
         //         maps a row in the output to a group
         idx_t group =  dynamic_cast<LineageDataArray<sel_t>&>(*lop->data).getAtIndex(oidx);
         std::cout << oidx << " belong to " << group << std::endl;
-        string tablename = op->GetName()  + "_" + to_string( op->id ) +  "_OUT"; // + node ID
-        lop->data->persist(context, tablename, lineage->chunk_id);
 
         // Lookup the data on the build side
         if (pipelines_lineage[1].find(op) != pipelines_lineage[1].end()) {
@@ -416,14 +466,11 @@ void ManageLineage::BackwardLineage(PhysicalOperator *op, shared_ptr<LineageCont
                     std::cout << "something is wrong,   aggregate sink lop not found" << std::endl;
                     continue;
                 }
-                string tablename = op->GetName() + "_" + to_string( op->id ) + "_SINK"; // + node ID
-                sink_lop->data->persist(context, tablename, lineage->chunk_id);
-
 
                 // schema: [ridx idx_t, group idx_t]
                 //         maps input row to a specific group
                 // getAllMatches: get all ridx that belong to group, O(n)
-                dynamic_cast<LineageDataArray<sel_t>&>(*sink_lop->data).getAllMatches(group, matches);
+                dynamic_cast<LineageSelVec&>(*sink_lop->data).getAllMatches(group, matches);
                 for (int j =0; j < matches.size(); ++j) {
                     std::cout << " getAllMatches " << matches[j] << std::endl;
                 }
@@ -444,14 +491,10 @@ void ManageLineage::BackwardLineage(PhysicalOperator *op, shared_ptr<LineageCont
             return;
         }
 
-        auto lhs_idx = dynamic_cast<LineageDataArray<sel_t>&>(*lop->data_lhs).getAtIndex(oidx);
+        auto lhs_idx = dynamic_cast<LineageSelVec&>(*lop->data_lhs).getAtIndex(oidx);
         std::cout << "-> Index Join LHS " <<  lhs_idx << std::endl;
         auto rhs_idx =  dynamic_cast<LineageDataVector<row_t>&>(*lop->data_rhs).getAtIndex(oidx);
         std::cout << "-> Index Join RHS " <<  rhs_idx << std::endl;
-
-        string tablename = op->GetName()+ "_" + to_string( op->id ) ; // + node ID
-        lop->data_lhs->persist(context, tablename+ "_LHS", lineage->chunk_id);
-        lop->data_rhs->persist(context, tablename+ "_RHS", lineage->chunk_id);
 
         BackwardLineage(op->children[0].get(), lineage, oidx, context);
         BackwardLineage(op->children[1].get(), lineage, oidx, context);
@@ -468,7 +511,7 @@ void ManageLineage::BackwardLineage(PhysicalOperator *op, shared_ptr<LineageCont
 
         // schema: [oidx idx_t, lhs_idx idx_t]
         //         maps output row to row from probe side (LHS)
-        auto lhs_idx =  dynamic_cast<LineageDataArray<sel_t>&>(*lop->data_lhs).getAtIndex(oidx);
+        auto lhs_idx =  dynamic_cast<LineageSelVec&>(*lop->data_lhs).getAtIndex(oidx);
         std::cout << "-> Hash Join LHS " <<  lhs_idx << std::endl;
 
         // schema: [oidx idx_t, rhs_ptr uintptr_t]
@@ -509,11 +552,15 @@ void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lin
     string tablename = op->GetName() + "_" + to_string(query_id) + "_" + to_string( op->id );
 
     switch (op->type) {
+
+    case PhysicalOperatorType::LIMIT: { // O(1)
+        Persist(op->children[0].get(), move(lineage), context, is_sink);
+        break;
+	}
     case PhysicalOperatorType::FILTER: { // O(1)
         LineageOpUnary *lop = dynamic_cast<LineageOpUnary *>(lineage->GetLineageOp(op, 0).get());
         if (!lop) {
-            std::cout << "something is wrong, lop not found for filter" << std::endl;
-            return;
+             return;
         }
         // schema: [oidx idx_t, idx idx_t]
         //         maps a row in the output to input index
@@ -531,7 +578,7 @@ void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lin
         dynamic_cast<LineageRange&>(*collection->collection["rowid_range"]).persist(context, tablename + "_range", lineage->chunk_id);
 
         if (collection->collection.find("filter") != collection->collection.end()) {
-            dynamic_cast<LineageDataArray<sel_t>&>(*collection->collection["filter"]).persist(context, tablename + "_filter" , lineage->chunk_id);
+            dynamic_cast<LineageSelVec&>(*collection->collection["filter"]).persist(context, tablename + "_filter" , lineage->chunk_id);
 
         }
         break;
@@ -541,13 +588,13 @@ void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lin
         break;
     }
     case PhysicalOperatorType::SIMPLE_AGGREGATE:
+        Persist(op->children[0].get(), move(lineage), context);
         break;
     case PhysicalOperatorType::PERFECT_HASH_GROUP_BY:
     case PhysicalOperatorType::HASH_GROUP_BY: {
         if (is_sink) {
             std::shared_ptr<LineageOpUnary> sink_lop = std::dynamic_pointer_cast<LineageOpUnary>(lineage->GetLineageOp(op, 1));
             if (!sink_lop) {
-                std::cout << "something is wrong,   aggregate sink lop not found" << std::endl;
                 return;
             }
 
@@ -558,7 +605,6 @@ void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lin
             std::shared_ptr<LineageOpUnary> lop =
                 std::dynamic_pointer_cast<LineageOpUnary>(lineage->GetLineageOp(op, 0));
             if (!lop) {
-                std::cout << "something is wrong, lop not found for   aggregate" << std::endl;
                 return;
             }
 
@@ -576,7 +622,6 @@ void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lin
         std::shared_ptr<LineageOpBinary> lop = std::dynamic_pointer_cast<LineageOpBinary>(lineage->GetLineageOp(op, 0));
 
         if (!lop) {
-            std::cout << "something is wrong, lop not found" << std::endl;
             return;
         }
 
@@ -590,7 +635,6 @@ void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lin
         if (is_sink) {
             std::shared_ptr<LineageOpUnary> sink_lop = std::dynamic_pointer_cast<LineageOpUnary>(lineage->GetLineageOp(op, 1));
             if (!sink_lop) {
-                std::cout << "something is wrong, hash join build lop not found" << std::endl;
                 return;
             }
             sink_lop->data->persist(context, tablename+ "_SINK", lineage->chunk_id);
@@ -599,7 +643,6 @@ void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lin
                 std::dynamic_pointer_cast<LineageOpCollection>(lineage->GetLineageOp(op, 0));
 
             if (!probe_lop) {
-                std::cout << "something is wrong, hash join probe_lop lop not found" << std::endl;
                 return;
             }
 
@@ -615,12 +658,53 @@ void ManageLineage::Persist(PhysicalOperator *op, shared_ptr<LineageContext> lin
                 op.data_lhs->persist(context, tablename + "_LHS", lineage->chunk_id, lhs_count);
                 op.data_rhs->persist(context, tablename + "_RHS", lineage->chunk_id, rhs_count);
 
-                lhs_count += dynamic_cast<LineageDataArray<sel_t>&>(*op.data_lhs).count;
+                lhs_count += dynamic_cast<LineageSelVec&>(*op.data_lhs).count;
                 rhs_count += dynamic_cast<LineageDataArray<uintptr_t>&>(*op.data_rhs).count;
             }
 
             Persist(op->children[0].get(), lineage, context, is_sink);
             Persist(op->children[1].get(), lineage, context, is_sink);
+        }
+        break;
+    }
+    case PhysicalOperatorType::CROSS_PRODUCT: {
+        if (is_sink) {
+            // todo: how to persist right hand side lineage? do we need to?
+        } else {
+            std::shared_ptr<LineageOpUnary> lop =
+                std::dynamic_pointer_cast<LineageOpUnary>(lineage->GetLineageOp(op, 0));
+
+            if (!lop) {
+                return;
+            }
+
+            // schema: [oidx idx_t, lhs_idx idx_t]
+            //         maps output row to row from probe side (LHS)
+
+            lop->data->persist(context, tablename, lineage->chunk_id, 0);
+        }
+        break;
+    }
+    case PhysicalOperatorType::BLOCKWISE_NL_JOIN:
+    case PhysicalOperatorType::NESTED_LOOP_JOIN: {
+        if (is_sink) {
+            // todo: how to persist right hand side lineage? do we need to?
+        } else {
+            std::shared_ptr<LineageOpBinary> lop =
+                std::dynamic_pointer_cast<LineageOpBinary>(lineage->GetLineageOp(op, 0));
+
+            if (!lop) {
+                return;
+            }
+
+            // schema: [oidx idx_t, lhs_idx idx_t]
+            //         maps output row to row from probe side (LHS)
+
+            // schema: [oidx idx_t, rhs_ptr uintptr_t]
+            //         maps output row to row from the build side in the hash table payload
+            lop->data_lhs->persist(context, tablename + "_LHS", lineage->chunk_id, 0);
+            // add an offset for the right side?
+            lop->data_rhs->persist(context, tablename + "_RHS", lineage->chunk_id, 0);
         }
         break;
     }
