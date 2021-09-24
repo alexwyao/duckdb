@@ -39,8 +39,8 @@ class ProvEvaluator(object):
         print("Compiling query {} ...".format(q_id))
 
         # TODO: change fname to include q_id
-        #self.compiler.process_qp(q_id, '/tmp/profiled.json', timing=True, debug=False, multi_t=False)
-        self.compiler.process_qp(q_id, '/tmp/profiled.json', timing=True, debug=False, multi_t=True)
+        #self.compiler.process_qp(q_id, '/tmp/profiled.json', timing=True, debug=False, multi_t=True)
+        self.compiler.process_qp(q_id, '/tmp/profiled.json', timing=False, debug=True, multi_t=True)
         
         
         """

@@ -14,7 +14,7 @@ class Join(Op):
     def produce_single_thread_1d(self, ctx, left_var, right_var, c_0, c_1, c_len):
         name = super(Join, self).get_name()
         #ctx("int *{0} = new int[{1}]();".format(name, c_len))
-        ctx("int {}[{}] = {{ 0 }};".format(name, c_len))
+        ctx("static int {}[{}] = {{ 0 }};".format(name, c_len))
         #ctx("std::vector<int> {} ({}, 0);".format(name, c_len))
 
         with ctx.block(""):
@@ -25,7 +25,7 @@ class Join(Op):
     def produce_multi_thread_1d(self, ctx, left_var, right_var, c_0, c_1, c_len):
         name = super(Join, self).get_name()
         #ctx("int *{0} = new int[{1}]();".format(name, c_len))
-        ctx("int {}[{}] = {{ 0 }};".format(name, c_len))
+        ctx("static int {}[{}] = {{ 0 }};".format(name, c_len))
         #ctx("std::vector<int> {} ({}, 0);".format(name, c_len))
 
         with ctx.block(""):
@@ -33,6 +33,6 @@ class Join(Op):
 
             ctx("int batch_size = 1 + (({} - 1) / N_THREADS);".format(c_len))
             with ctx.block("for (int i = 0; i < N_THREADS; ++i)"):
-                ctx("pool.push_task([i, batch_size, &{0}, &{1}, &{2}] {{JoinThreadFnc1d(i, batch_size, {3}, {0}, {1}, c0, c1, {2});}});".format(left_var,
-                    right_var, name, c_len))
+                ctx("pool.push_task([i, batch_size] {{JoinThreadFnc1d(i, batch_size, {3}, {0}, {1}, c0, c1, {2});}});".format(left_var, 
+                        right_var, name, c_len))
             ctx("pool.wait_for_tasks();")

@@ -20,7 +20,7 @@ class GroupByCount(GroupBy):
     def produce_single_thread_1d(self, ctx, keys, values_var, values_order, N, out_N):
         name = super(GroupByCount, self).get_name()
         #ctx("int *{} = new int[{}]();".format(name, out_N))
-        ctx("int {}[{}] = {{ 0 }};".format(name, out_N))
+        ctx("static int {}[{}] = {{ 0 }};".format(name, out_N))
 
         with ctx.block(""):
             # Step 1: Rewrite values into sorted order
@@ -35,7 +35,7 @@ class GroupByCount(GroupBy):
             N_THREADS, front_thresh, back_thresh, batch_sizes):
         name = super(GroupByCount, self).get_name()
         #ctx("int *{} = new int[{}]();".format(name, out_N))
-        ctx("int {}[{}] = {{ 0 }};".format(name, out_N))
+        ctx("static int {}[{}] = {{ 0 }};".format(name, out_N))
 
         with ctx.block(""):
             # Step 1: Rewrite values into sorted order
@@ -47,7 +47,7 @@ class GroupByCount(GroupBy):
             ctx("std::vector<int> s_vals(2 * N_THREADS * C_BUF, 0);")
 
             for t_num in range(N_THREADS):
-                ctx("pool.push_task([&{2}, &{3}, &s_keys, &s_vals] {{GroupbyCountThreadFnc1d({0}, {7}, {6}, {1}, keys, {2}, {3}, std::ref(s_keys), std::ref(s_vals), {4}, {5}, back_array);}});".format(t_num, 
+                ctx("pool.push_task([&s_keys, &s_vals] {{GroupbyCountThreadFnc1d({0}, {7}, {6}, {1}, keys, {2}, {3}, std::ref(s_keys), std::ref(s_vals), {4}, {5}, back_array);}});".format(t_num, 
                     N, values_var, name, front_thresh[t_num], back_thresh[t_num], batch_sizes[t_num], t_num * batch_sizes[0]))
             ctx("pool.wait_for_tasks();")
 
@@ -55,7 +55,9 @@ class GroupByCount(GroupBy):
                 with ctx.block("for (int j = 0; j < C_BUF; ++j)"):
                     ctx("int thread_key = keys[i * {}] + j;".format(batch_sizes[0]))
                     ctx("{}[thread_key] += s_vals[2 * i * C_BUF + j];".format(name))
-                ctx("int back_key = keys[(i + 1) * {} - 1];".format(batch_sizes[0]))
+                ctx("int back_index = (i + 1) * {} - 1;".format(batch_sizes[0]))
+                ctx("if (back_index >= {0}) {{ back_index = {0} - 1; }};".format(N))
+                ctx("int back_key = keys[back_index];")
                 ctx("{}[back_key] += s_vals[(2 * i + 1) * C_BUF];".format(name))
 
 
@@ -64,7 +66,7 @@ class GroupBySum(GroupBy):
 
     def produce_single_thread_1d(self, ctx, keys, mask_var, values_order, values, N, out_N):
         name = super(GroupBySum, self).get_name()
-        ctx("float {}[{}] = {{ 0 }};".format(name, out_N))
+        ctx("static float {}[{}] = {{ 0 }};".format(name, out_N))
 
         with ctx.block(""):
             # Step 1: Rewrite values into sorted order

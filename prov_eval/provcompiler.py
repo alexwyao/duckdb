@@ -3,9 +3,10 @@ from ops.scan import SeqScan
 from ops.join import Join
 from ops.groupby import *
 import json
-from random import randrange
+import random 
 
 # TEMPORARY (FOR TPCH5)
+'''
 q_tpch5_inputs = """
 select 
         l_extendedprice * (1 - l_discount) as revenue
@@ -27,6 +28,36 @@ where
         and o_orderdate >= date '1994-01-01'
         and o_orderdate < date '1995-01-01'
 """
+'''
+q_tpch5_inputs = """
+SELECT
+    volume AS revenue
+FROM (
+    SELECT
+        n1.n_name AS supp_nation,
+        n2.n_name AS cust_nation,
+        extract(year FROM l_shipdate) AS l_year,
+        l_extendedprice * (1 - l_discount) AS volume
+    FROM
+        supplier,
+        lineitem,
+        orders,
+        customer,
+        nation n1,
+        nation n2
+    WHERE
+        s_suppkey = l_suppkey
+        AND o_orderkey = l_orderkey
+        AND c_custkey = o_custkey
+        AND s_nationkey = n1.n_nationkey
+        AND c_nationkey = n2.n_nationkey
+        AND ((n1.n_name = 'FRANCE'
+                AND n2.n_name = 'GERMANY')
+            OR (n1.n_name = 'GERMANY'
+                AND n2.n_name = 'FRANCE'))
+        AND l_shipdate BETWEEN CAST('1995-01-01' AS date)
+        AND CAST('1996-12-31' AS date)) AS shipping
+"""
 
 class ProvCompiler(object):
 
@@ -41,6 +72,9 @@ class ProvCompiler(object):
         # i.e. hashj_count correctly maps the hash join to node
         self.hashj_count = 0
         self.groupby_count = 0
+
+        # seed random for consistency
+        random.seed(0)
 
     def process_qp(self, qid, fname, timing=False, debug=False, multi_t=False):
         with open(fname) as f:
@@ -178,7 +212,6 @@ class ProvCompiler(object):
                         back_thresh.append(j + 1)
                         batch_sizes.append(cur_bs)
 
-                    print("THE CHILD IS {}".format(child))
                     groupby.produce_multi_thread_1d(self.cpp, keys, 
                             child, [x for x in res_lineage['input']], 
                             N, res_lineage['output'].iloc[-1] + 1, self.n_threads,
@@ -241,7 +274,7 @@ class ProvCompiler(object):
 
             # Write out "indices" array of size N
             seq = SeqScan()
-            #seq.produce(self.cpp, [randrange(0,2) for _ in range(node['cardinality'])])
+            #seq.produce(self.cpp, [random.randrange(0,2) for _ in range(node['cardinality'])])
             seq.produce(self.cpp, [1 for _ in range(node['cardinality'])])
 
             return seq.get_name() 
